@@ -29,6 +29,9 @@ public class MenuUIHandler : MonoBehaviour
 
     public void StartGame()
     {
+        if (string.IsNullOrWhiteSpace(GameManager.Instance.PlayerName))
+            GameManager.Instance.PlayerName = "unnamed";
+
         SceneManager.LoadScene(1);
     }
 
