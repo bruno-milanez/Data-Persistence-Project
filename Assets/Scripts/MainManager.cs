@@ -1,25 +1,42 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class MainManager : MonoBehaviour
 {
+    const int maxLineCount = 6;
+
     public Brick BrickPrefab;
-    public int LineCount = 6;
+    public int LineCount = maxLineCount;
     public Rigidbody Ball;
 
     public Text ScoreText;
     public Text BestScoreText;
     public GameObject GameOverText;
-    
+    public Text LevelUpText;
+
     private bool m_Started = false;
     private int m_Points;
     
     private bool m_GameOver = false;
+    private int m_BricksLeft = 0;
+    private int m_Level = 1;
 
-    
+    private IEnumerator m_Coroutine;
+
+    private Paddle m_Paddle;
+    private Vector3 m_BallStartPos;
+    private Vector3 m_PaddleStartPos;
+    private Vector3 m_BallVelocity = Vector3.zero;
+
+    private void Awake()
+    {
+        m_BallStartPos = Ball.transform.position;
+        m_Paddle = FindObjectOfType<Paddle>();
+        m_PaddleStartPos = m_Paddle.transform.position;
+    }
+
     // Start is called before the first frame update
     void Start()
     {
@@ -37,8 +54,11 @@ public class MainManager : MonoBehaviour
                 var brick = Instantiate(BrickPrefab, position, Quaternion.identity);
                 brick.PointValue = pointCountArray[i];
                 brick.onDestroyed.AddListener(AddPoint);
+                m_BricksLeft++;
             }
         }
+
+        Debug.Log("Bricks: " + m_BricksLeft);
     }
 
     private string SetBestScore()
@@ -55,28 +75,86 @@ public class MainManager : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Space))
             {
+                Debug.Log("Space pressed");
                 m_Started = true;
                 float randomDirection = Random.Range(-1.0f, 1.0f);
                 Vector3 forceDir = new Vector3(randomDirection, 1, 0);
                 forceDir.Normalize();
 
                 Ball.transform.SetParent(null);
-                Ball.AddForce(forceDir * 2.0f, ForceMode.VelocityChange);
+                Ball.velocity = m_BallVelocity;
+                Ball.AddForce(forceDir * (1 + m_Level), ForceMode.VelocityChange);
             }
+
+            return;
         }
-        else if (m_GameOver)
+        
+        if (m_GameOver)
         {
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                SceneManager.LoadScene(0);
+            }
+
+            return;
+        }
+        
+        if (m_BricksLeft == 0)
+        {
+            LevelUp();
+            return;
         }
     }
 
     void AddPoint(int point)
     {
+        AddPoint(point, true);
+    }
+
+    void AddBonus(int point)
+    {
+        AddPoint(point, false);
+    }
+
+    void AddPoint(int point, bool decreaseBrick)
+    {
+        if (decreaseBrick)
+            m_BricksLeft--;
+        
         m_Points += point;
         ScoreText.text = $"Score : {m_Points}";
+    }
+
+    void LevelUp()
+    {
+        if (LineCount < maxLineCount)
+            LineCount++;
+
+        RestartBallPosition();
+        Start();
+        int bonusPoints = m_Level * 10;
+        AddBonus(bonusPoints);
+        LevelUpText.text = $"LEVEL UP!\n{bonusPoints} Bonus Points";
+        LevelUpText.gameObject.SetActive(true);
+        m_Coroutine = FadeLevelUpText();
+        StartCoroutine(m_Coroutine);
+        m_Level++;
+    }
+
+    private void RestartBallPosition()
+    {
+        Ball.position = m_BallStartPos;
+        m_Paddle.transform.position = m_PaddleStartPos;
+    }
+
+    private IEnumerator FadeLevelUpText()
+    {
+        yield return new WaitForSeconds(2.0f);
+        LevelUpText.gameObject.SetActive(false);
     }
 
     public void GameOver()
